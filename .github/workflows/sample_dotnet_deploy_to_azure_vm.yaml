@@ -1,12 +1,10 @@
-name: Deploy Sample .NET Core to Azure VM (Windows IIS)
+name: Deploy Sample .NET Core to IIS on Azure VM
 
 env:
   DOTNET_VERSION: '6.0.x'
-  PROJECT_PATH: 'SampleDotNetApp/SampleDotNetApp/SampleDotNetApp.csproj'
-  SOLUTION_PATH: 'SampleDotNetApp/SampleDotNetApp.sln'
-  TARGET_RID: 'win-x64'
-  IIS_SITE_NAME: 'SampleDotNetAppSite'
-  IIS_SITE_PATH: 'C:\\inetpub\\wwwroot\\SampleDotNetApp'
+  PROJECT_PATH: 'SampleDotNetApp/SampleDotNetApp.csproj'
+  SOLUTION_PATH: 'SampleDotNetApp.sln'
+  PUBLISH_FOLDER: 'publish_output'
 
 on:
   push:
@@ -18,7 +16,7 @@ permissions:
   actions: read
 
 jobs:
-  build-test-publish:
+  build-publish:
     name: Build and Publish .NET App
     runs-on: ubuntu-latest
 
@@ -41,49 +39,39 @@ jobs:
         run: |
           dotnet publish ${{ env.PROJECT_PATH }} \
             --configuration Release \
-            --runtime ${{ env.TARGET_RID }} \
-            --self-contained true \
-            --output ./publish_output
+            --output ${{ env.PUBLISH_FOLDER }}
 
-      - name: Upload Published Application Artifact
+      - name: Upload Published Artifact
         uses: actions/upload-artifact@v4
         with:
           name: dotnet-app-publish
-          path: ./publish_output
+          path: ${{ env.PUBLISH_FOLDER }}
           retention-days: 1
 
   deploy-to-iis-vm:
-    name: Deploy to Azure Windows VM with IIS
+    name: Deploy to IIS on Azure VM
     runs-on: ubuntu-latest
-    needs: build-test-publish
+    needs: build-publish
 
     steps:
-      - name: Download Published Application Artifact
+      - name: Download Published Artifact
         uses: actions/download-artifact@v4
         with:
           name: dotnet-app-publish
           path: ./downloaded_app
 
-      - name: Setup SSH for PowerShell
+      - name: Setup SSH
         uses: webfactory/ssh-agent@v0.8.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Deploy via SCP and PowerShell to IIS
+      - name: Copy and Deploy to IIS
         run: |
-          echo "Copying application to Windows VM..."
-          scp -r -o StrictHostKeyChecking=no ./downloaded_app/* ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}:"C:/temp/deployment/"
+          echo "Stopping IIS Site..."
+          ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} 'powershell.exe -Command "Stop-WebSite -Name \"${{ secrets.IIS_SITE_NAME }}\""'
 
-          echo "Running deployment commands on remote Windows VM..."
-          ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} powershell -Command "
-            Import-Module WebAdministration;
-            if (Test-Path '${{ env.IIS_SITE_PATH }}') {
-              Stop-WebSite -Name '${{ env.IIS_SITE_NAME }}';
-              Remove-Item '${{ env.IIS_SITE_PATH }}\\*' -Recurse -Force;
-              Copy-Item 'C:\\temp\\deployment\\*' -Destination '${{ env.IIS_SITE_PATH }}' -Recurse;
-              Start-WebSite -Name '${{ env.IIS_SITE_NAME }}';
-            } else {
-              Write-Host 'IIS site path does not exist.';
-              exit 1;
-            }
-          "
+          echo "Copying files to remote IIS site directory..."
+          scp -r -o StrictHostKeyChecking=no ./downloaded_app/* ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}:${{ secrets.IIS_SITE_PATH }}/
+
+          echo "Starting IIS Site..."
+          ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} 'powershell.exe -Command "Start-WebSite -Name \"${{ secrets.IIS_SITE_NAME }}\""'
