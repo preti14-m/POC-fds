@@ -65,6 +65,9 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
+      - name: Test SSH connection with verbose logging
+        run: ssh -vvv -o StrictHostKeyChecking=no ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} "hostname"
+
       - name: Copy and Deploy to IIS
         run: |
           echo "Stopping IIS Site..."
