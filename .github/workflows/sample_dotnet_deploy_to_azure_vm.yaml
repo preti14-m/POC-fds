@@ -71,8 +71,9 @@ jobs:
 
       - name: Stop IIS Site if exists
         run: |
-          sshpass -p "${{ secrets.VM_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} powershell.exe -Command ^
-            "if (Test-Path IIS:\\Sites\\'${{ secrets.IIS_SITE_NAME }}') { Stop-WebSite -Name '${{ secrets.IIS_SITE_NAME }}'; Write-Host 'Site stopped.' } else { Write-Host 'Site not found. Skipping stop.' }"
+          COMMAND="if (Test-Path IIS:\\Sites\\'${{ secrets.IIS_SITE_NAME }}') { Stop-WebSite -Name '${{ secrets.IIS_SITE_NAME }}'; Write-Host 'Site stopped.' } else { Write-Host 'Site not found. Skipping stop.' }"
+          ENCODED_COMMAND=$(echo -n "$COMMAND" | iconv -f UTF-8 -t UTF-16LE | base64 -w 0)
+          sshpass -p "${{ secrets.VM_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} powershell.exe -EncodedCommand $ENCODED_COMMAND
 
       - name: Copy files to remote IIS site directory
         run: |
