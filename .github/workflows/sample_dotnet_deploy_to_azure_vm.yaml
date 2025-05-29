@@ -81,5 +81,6 @@ jobs:
 
       - name: Start IIS Site if exists
         run: |
-          sshpass -p "${{ secrets.VM_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} powershell.exe -Command ^
-            "if (Test-Path IIS:\\Sites\\'${{ secrets.IIS_SITE_NAME }}') { Start-WebSite -Name '${{ secrets.IIS_SITE_NAME }}'; Write-Host 'Site started.' } else { Write-Host 'Site not found. Skipping start.' }"
+          COMMAND="if (Test-Path IIS:\\Sites\\'${{ secrets.IIS_SITE_NAME }}') { Start-WebSite -Name '${{ secrets.IIS_SITE_NAME }}'; Write-Host 'Site started.' } else { Write-Host 'Site not found. Skipping start.' }"
+          ENCODED_COMMAND=$(echo -n "$COMMAND" | iconv -f UTF-8 -t UTF-16LE | base64 -w 0)
+          sshpass -p "${{ secrets.VM_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} powershell.exe -EncodedCommand $ENCODED_COMMAND
