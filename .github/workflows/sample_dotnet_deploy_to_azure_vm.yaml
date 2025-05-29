@@ -60,21 +60,28 @@ jobs:
           name: dotnet-app-publish
           path: ./downloaded_app
 
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.8.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Install sshpass
+        run: sudo apt-get update && sudo apt-get install -y sshpass
 
-      - name: Test SSH connection with verbose logging
-        run: ssh -vvv -o StrictHostKeyChecking=no ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} 'echo "Hello from GitHub Actions"'
+      - name: Test SSH connection
+        run: |
+          sshpass -p "${{ secrets.VM_PASSWORD }}" \
+          ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} \
+          'echo "Hello from GitHub Actions"'
 
       - name: Copy and Deploy to IIS
         run: |
           echo "Stopping IIS Site..."
-          ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} 'powershell.exe -Command "Stop-WebSite -Name \"${{ secrets.IIS_SITE_NAME }}\""'
+          sshpass -p "${{ secrets.VM_PASSWORD }}" \
+          ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} \
+          "powershell.exe -Command \"Stop-WebSite -Name '${{ secrets.IIS_SITE_NAME }}'\""
 
           echo "Copying files to remote IIS site directory..."
-          scp -r -o StrictHostKeyChecking=no ./downloaded_app/* ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}:${{ secrets.IIS_SITE_PATH }}/
+          sshpass -p "${{ secrets.VM_PASSWORD }}" \
+          scp -r -o StrictHostKeyChecking=no ./downloaded_app/* \
+          ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}:'${{ secrets.IIS_SITE_PATH }}'
 
           echo "Starting IIS Site..."
-          ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} 'powershell.exe -Command "Start-WebSite -Name \"${{ secrets.IIS_SITE_NAME }}\""'
+          sshpass -p "${{ secrets.VM_PASSWORD }}" \
+          ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} \
+          "powershell.exe -Command \"Start-WebSite -Name '${{ secrets.IIS_SITE_NAME }}'\""
