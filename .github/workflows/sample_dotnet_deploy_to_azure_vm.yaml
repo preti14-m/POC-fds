@@ -69,33 +69,16 @@ jobs:
           ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} \
           'echo "Hello from GitHub Actions"'
 
-      - name: Copy and Deploy to IIS
+      - name: Stop IIS Site if exists
         run: |
-          echo "Stopping IIS Site (if exists)..."
-          sshpass -p "${{ secrets.VM_PASSWORD }}" \
-          ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} \
-          "powershell.exe -Command \"
-            if (Test-Path IIS:\Sites\${{ secrets.IIS_SITE_NAME }}) {
-              Stop-WebSite -Name '${{ secrets.IIS_SITE_NAME }}'
-              Write-Host 'Site stopped.'
-            } else {
-              Write-Host 'Site not found. Skipping stop.'
-            }
-          \""
+          sshpass -p "${{ secrets.VM_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} powershell.exe -Command ^
+            "if (Test-Path IIS:\\Sites\\'${{ secrets.IIS_SITE_NAME }}') { Stop-WebSite -Name '${{ secrets.IIS_SITE_NAME }}'; Write-Host 'Site stopped.' } else { Write-Host 'Site not found. Skipping stop.' }"
 
-          echo "Copying files to remote IIS site directory..."
-          sshpass -p "${{ secrets.VM_PASSWORD }}" \
-          scp -r -o StrictHostKeyChecking=no ./downloaded_app/* \
-          ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}:'${{ secrets.IIS_SITE_PATH }}'
+      - name: Copy files to remote IIS site directory
+        run: |
+          sshpass -p "${{ secrets.VM_PASSWORD }}" scp -r -o StrictHostKeyChecking=no ./downloaded_app/* ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}:'${{ secrets.IIS_SITE_PATH }}'
 
-          echo "Starting IIS Site (if exists)..."
-          sshpass -p "${{ secrets.VM_PASSWORD }}" \
-          ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} \
-          "powershell.exe -Command \"
-            if (Test-Path IIS:\Sites\${{ secrets.IIS_SITE_NAME }}) {
-              Start-WebSite -Name '${{ secrets.IIS_SITE_NAME }}'
-              Write-Host 'Site started.'
-            } else {
-              Write-Host 'Site not found. Skipping start.'
-            }
-          \""
+      - name: Start IIS Site if exists
+        run: |
+          sshpass -p "${{ secrets.VM_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} powershell.exe -Command ^
+            "if (Test-Path IIS:\\Sites\\'${{ secrets.IIS_SITE_NAME }}') { Start-WebSite -Name '${{ secrets.IIS_SITE_NAME }}'; Write-Host 'Site started.' } else { Write-Host 'Site not found. Skipping start.' }"
